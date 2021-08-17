@@ -28,6 +28,22 @@ using std::chrono::system_clock;
         exit(1);                                                                                         \
     }              
 
+string getDatetimeStr() {
+    time_t t = time(nullptr);
+    struct tm now_time;
+    errno_t error;
+    error = localtime_s(&now_time, &t);
+    std::stringstream s;
+    s << "20" << now_time.tm_year - 100;
+    // setw(),setfill()で0詰め
+    s << setw(2) << setfill('0') << now_time.tm_mon + 1;
+    s << setw(2) << setfill('0') << now_time.tm_mday;
+    s << setw(2) << setfill('0') << now_time.tm_hour;
+    s << setw(2) << setfill('0') << now_time.tm_min;
+    s << setw(2) << setfill('0') << now_time.tm_sec;
+    // std::stringにして値を返す
+    return s.str();
+}
 
 int main()
 {   
@@ -59,6 +75,13 @@ int main()
     // バイナリ出力モードで開く
     fstream file("./skeleton/skeleton41.txt", ios::binary | ios::out);
     //timesramp作成
+    auto millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    //書き込む用のファイルを作成
+    std::ofstream writing_file;
+    std::string timedata = getDatetimeStr();
+    std::string filename = "./jointdata/" + timedata + ".csv";
+    //ファイルを開く
+    writing_file.open(filename, std::ios::out);
     do
     {
         k4a_capture_t sensor_capture;
@@ -68,7 +91,7 @@ int main()
             frame_count++;
             k4a_wait_result_t queue_capture_result = k4abt_tracker_enqueue_capture(tracker, sensor_capture, K4A_WAIT_INFINITE);
             //k4a_capture_release(sensor_capture); // Remember to release the sensor capture once you finish using it
-            auto millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+            
 
             if (queue_capture_result == K4A_WAIT_RESULT_TIMEOUT)
             {
@@ -91,6 +114,12 @@ int main()
 
                 size_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
                 printf("%zu bodies are detected!\n", num_bodies);
+
+                //現在の時刻を取得する（マイクロ秒の情報を取得)
+                auto new_millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                float during_millisec = (new_millisec_since_epoch - millisec_since_epoch);
+                std::string str_during_millisec = std::to_string(during_millisec);
+                //std::cout << now;
                 for (size_t i = 0; i < num_bodies; i++)
                 {
                     k4abt_skeleton_t skeleton;
@@ -100,22 +129,27 @@ int main()
                         printf("Error! cannot capture result\n");
                         break;
                     }
+                    //現在時刻と、idを書き込む
+                    writing_file << str_during_millisec + ",";
                     uint32_t id = k4abt_frame_get_body_id(body_frame, i);
-                    printf("id %zu is detected!!!\n", id);
+                    writing_file << std::to_string(id) + ",";
+                    //printf("id %zu is detected!!!\n", id);
         
                     //フレームのi番のスケルトンデータ
                     for (int jointId = 0; jointId < 33; ++jointId)
                     {   
                         k4abt_joint_t joint = skeleton.joints[jointId];
-                        
-                        printf("jointId = %d position is %f.\n", jointId, joint.position.xyz.x);
+                        //printf("jointId = %d position is %f.\n", jointId, joint.position.xyz.x);
                         //printf("position is %f, %f, %f", joint.Position.X, joint.Position.Y, joint.Position.Z);
+                        //実際の書き込み
+                        std::string x = std::to_string(joint.position.xyz.x);
+                        std::string y = std::to_string(joint.position.xyz.y);
+                        std::string z = std::to_string(joint.position.xyz.z);
+                        std::string writing_text = x + "," + y + "," + z + ",";
+                        writing_file << writing_text;
                     }
-                    //skeleton[frame_count-1]
-                    // // 書き込む
-                    //file.write((char*)&skeleton[frame_count-1], sizeof(skeleton[frame_count - 1]));
-                    //cout << "milliseconds since epoch: " << &skeleton[frame_count-1].joints[12].position.xyz.x;
-                    //k4abt_skeleton_t
+                    //改行コードを書き込む
+                    writing_file << std::endl;
                 }
 
                 k4abt_frame_release(body_frame); // Remember to release the body frame once you finish using it
@@ -203,7 +237,8 @@ int main()
 
     } while (frame_count < FRAME_NUM);
     
-
+    //書き込みファイルを閉じる
+    writing_file.close();
     cv::destroyAllWindows();
 
     printf("Finished body tracking processing!\n");
