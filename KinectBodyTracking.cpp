@@ -12,14 +12,13 @@ using namespace std;
 
 #include <chrono>
 #include <ctime>
+#include <time.h>
 
 using std::cout; using std::endl;
 using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 using std::chrono::system_clock;
-
-
 
 #define FRAME_NUM 10000
 #define VERIFY(result, error)                                                                            \
@@ -56,76 +55,9 @@ int main()
     //構造体 skeletonの配列の作成
     //k4abt_skeleton_t skeleton[FRAME_NUM];
     vector<k4abt_skeleton_t> skeleton(FRAME_NUM);
-    //int frame_count = 0;
-    //timesramp作成
-    /*
-    while (cv::waitKey(1) != 'q') {
-        // Capture a depth frame
-        k4a_capture_t capture;
-
-        switch (k4a_device_get_capture(device, &capture, 1000))
-        {
-        case K4A_WAIT_RESULT_SUCCEEDED:
-            break;
-        case K4A_WAIT_RESULT_TIMEOUT:
-            printf("Timed out waiting for a capture\n");
-            continue;
-            break;
-        case K4A_WAIT_RESULT_FAILED:
-            printf("Failed to read a capture\n");
-            return 1;
-        }
-
-        // Kinect for Azure color & depth.
-        const auto k4a_color = k4a_capture_get_color_image(capture);
-        const auto k4a_ir = k4a_capture_get_ir_image(capture);
-        const auto k4a_depth = k4a_capture_get_depth_image(capture);
-
-        if (k4a_color == NULL || k4a_ir == NULL) {
-            continue;
-        }
-
-        // Print depth image details.
-        printf(" | Depth16 res:%4dx%4d stride:%5d\n",
-            k4a_image_get_height_pixels(k4a_ir),
-            k4a_image_get_width_pixels(k4a_ir),
-            k4a_image_get_stride_bytes(k4a_ir));
-
-        // Get color as cv::Mat
-        const auto cv_color = cv::Mat_<cv::Vec4b>(
-            k4a_image_get_height_pixels(k4a_color),
-            k4a_image_get_width_pixels(k4a_color),
-            (cv::Vec4b*)k4a_image_get_buffer(k4a_color),
-            k4a_image_get_stride_bytes(k4a_color));
-        cv::imshow("color", cv_color);
-
-        const auto cv_ir = cv::Mat_<short>(
-            k4a_image_get_height_pixels(k4a_ir),
-            k4a_image_get_width_pixels(k4a_ir),
-            (short*)k4a_image_get_buffer(k4a_ir),
-            k4a_image_get_stride_bytes(k4a_ir));
-        cv::imshow("IR", cv_ir * 20);
-
-        const auto cv_depth = cv::Mat_<short>(
-            k4a_image_get_height_pixels(k4a_depth),
-            k4a_image_get_width_pixels(k4a_depth),
-            (short*)k4a_image_get_buffer(k4a_depth),
-            k4a_image_get_stride_bytes(k4a_depth));
-        cv::imshow("depth", cv_depth * 40);
-
-        cv::waitKey(1);
-
-        // Release the image and capture.
-        k4a_image_release(k4a_color);
-        k4a_image_release(k4a_ir);
-        k4a_image_release(k4a_depth);
-        k4a_capture_release(capture);
-    }
-    */
-    
     int frame_count = 0;
     // バイナリ出力モードで開く
-    fstream file("./skeleton/skeleton40.dat", ios::binary | ios::out);
+    fstream file("./skeleton/skeleton41.txt", ios::binary | ios::out);
     //timesramp作成
     do
     {
@@ -161,14 +93,27 @@ int main()
                 printf("%zu bodies are detected!\n", num_bodies);
                 for (size_t i = 0; i < num_bodies; i++)
                 {
-                    k4abt_frame_get_body_skeleton(body_frame, i, &skeleton[frame_count-1]);
-                    //uint32_t id = k4abt_frame_get_body_id(body_frame, i);
-                    //printf("id %zu is detected!!!\n", id);
-                    //printf("position is %zu !\n", skeleton[frame_count - 1].joints);
+                    k4abt_skeleton_t skeleton;
+                    k4a_result_t result = k4abt_frame_get_body_skeleton(body_frame, i, &skeleton);
+                    if (result == K4A_RESULT_FAILED)
+                    {
+                        printf("Error! cannot capture result\n");
+                        break;
+                    }
+                    uint32_t id = k4abt_frame_get_body_id(body_frame, i);
+                    printf("id %zu is detected!!!\n", id);
+        
                     //フレームのi番のスケルトンデータ
+                    for (int jointId = 0; jointId < 33; ++jointId)
+                    {   
+                        k4abt_joint_t joint = skeleton.joints[jointId];
+                        
+                        printf("jointId = %d position is %f.\n", jointId, joint.position.xyz.x);
+                        //printf("position is %f, %f, %f", joint.Position.X, joint.Position.Y, joint.Position.Z);
+                    }
                     //skeleton[frame_count-1]
                     // // 書き込む
-                    file.write((char*)&skeleton[frame_count-1], sizeof(skeleton[frame_count - 1]));
+                    //file.write((char*)&skeleton[frame_count-1], sizeof(skeleton[frame_count - 1]));
                     //cout << "milliseconds since epoch: " << &skeleton[frame_count-1].joints[12].position.xyz.x;
                     //k4abt_skeleton_t
                 }
@@ -216,9 +161,9 @@ int main()
                 //cv_color, cv_ir, cv_depth
                 //cv::Mat
                 //cout << "milliseconds since epoch: " << millisec_since_epoch << endl;
-                cv::imwrite("./color/" + std::to_string(millisec_since_epoch) + ".jpg", cv_color);
+                /*cv::imwrite("./color/" + std::to_string(millisec_since_epoch) + ".jpg", cv_color);
                 cv::imwrite("./ir/" + std::to_string(millisec_since_epoch) + ".jpg", cv_ir);
-                cv::imwrite("./depth/" + std::to_string(millisec_since_epoch) + ".jpg", cv_depth);
+                cv::imwrite("./depth/" + std::to_string(millisec_since_epoch) + ".jpg", cv_depth);*/
 
                 cv::waitKey(1);
 
@@ -271,7 +216,7 @@ int main()
 
     //Fileへの構造体の書き込み
     //fstream file("C:Users\suzuk\data\skelton.dat", ios::binary | ios::out);
-    fstream file2("..\skelton.dat", ios::binary | ios::out);
+    fstream file2("..\skelton42.txt", ios::binary | ios::out);
     for (int i = 0; i < FRAME_NUM; i++) {
         file2.write((char*)&skeleton, sizeof(skeleton));
         //printf("position of x = %f\n", skeleton[i].joints[0].position.xyz);
