@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <list>
 using namespace std;
 
 #include <k4a/k4a.h>
@@ -13,6 +14,7 @@ using namespace std;
 #include <chrono>
 #include <ctime>
 #include <time.h>
+#include <conio.h>
 
 using std::cout; using std::endl;
 using std::chrono::duration_cast;
@@ -70,18 +72,21 @@ int main()
     //実際にフレームをキャプチャしていく。
     //構造体 skeletonの配列の作成
     //k4abt_skeleton_t skeleton[FRAME_NUM];
-    vector<k4abt_skeleton_t> skeleton(FRAME_NUM);
-    int frame_count = 0;
+
     // バイナリ出力モードで開く
-    fstream file("./skeleton/skeleton41.txt", ios::binary | ios::out);
-    //timesramp作成
-    auto millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-    //書き込む用のファイルを作成
+    //fstream file("./skeleton/skeleton41.txt", ios::binary | ios::out);
+    
+    //計測開始時のtimesramp作成
+    auto start_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    //関節点のデータを書き込む用のファイルを作成
     std::ofstream writing_file;
     std::string timedata = getDatetimeStr();
     std::string filename = "./jointdata/" + timedata + ".csv";
-    //ファイルを開く
-    writing_file.open(filename, std::ios::out);
+
+    //関節点を書き込む用のvectorを作成しておく。毎フレーム中に入れるlistを生成する
+    vector<list<string>> vec_jointlist;
+    int frame_count = 0; //現在のFrame位置を記録しておく変数
+    uint32_t temp_time = NULL; //FPS算出用の変数
     do
     {
         k4a_capture_t sensor_capture;
@@ -111,16 +116,22 @@ int main()
             if (pop_frame_result == K4A_WAIT_RESULT_SUCCEEDED)
             {
                 // Successfully popped the body tracking result. Start your processing
-
-                size_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
-                printf("%zu bodies are detected!\n", num_bodies);
+                uint32_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
+                printf("%zu body, ", num_bodies);
 
                 //現在の時刻を取得する（マイクロ秒の情報を取得)
-                auto new_millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                float during_millisec = (new_millisec_since_epoch - millisec_since_epoch);
+                uint32_t now_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                if (frame_count > 1) {
+                    int FPS = (int)1000 / (now_time - temp_time);
+                    //printf("\nnow time =  %zu\n", FPS);
+                    //printf("past time = %zu\n", temp_time);
+                    printf("%dFPS \n", FPS);
+                }
+                temp_time = now_time;
+                float during_millisec = (now_time - start_time);
                 std::string str_during_millisec = std::to_string(during_millisec);
                 //std::cout << now;
-                for (size_t i = 0; i < num_bodies; i++)
+                for (uint32_t i = 0; i < num_bodies; i++)
                 {
                     k4abt_skeleton_t skeleton;
                     k4a_result_t result = k4abt_frame_get_body_skeleton(body_frame, i, &skeleton);
@@ -129,10 +140,16 @@ int main()
                         printf("Error! cannot capture result\n");
                         break;
                     }
+
                     //現在時刻と、idを書き込む
-                    writing_file << str_during_millisec + ",";
+                    //writing_file << str_during_millisec + ",";
                     uint32_t id = k4abt_frame_get_body_id(body_frame, i);
-                    writing_file << std::to_string(id) + ",";
+                    //writing_file << std::to_string(id) + ",";
+                    
+                    //dataを格納するリストの作成
+                    list<string> l_joint;
+                    l_joint.push_back(str_during_millisec);
+                    l_joint.push_back(std::to_string(id));
                     //printf("id %zu is detected!!!\n", id);
         
                     //フレームのi番のスケルトンデータ
@@ -146,22 +163,29 @@ int main()
                         std::string y = std::to_string(joint.position.xyz.y);
                         std::string z = std::to_string(joint.position.xyz.z);
                         std::string writing_text = x + "," + y + "," + z + ",";
-                        writing_file << writing_text;
+                        //writing_file << writing_text;
+                        l_joint.push_back(x);
+                        l_joint.push_back(y);
+                        l_joint.push_back(z);
                     }
                     //改行コードを書き込む
-                    writing_file << std::endl;
+                    //writing_file << std::endl;
+                    //vectorにいれる
+                    vec_jointlist.push_back(l_joint);
+                    //時刻の記録
+
                 }
 
                 k4abt_frame_release(body_frame); // Remember to release the body frame once you finish using it
 
                 // Kinect for Azure color & depth.
                 const auto k4a_color = k4a_capture_get_color_image(sensor_capture);
-                const auto k4a_ir = k4a_capture_get_ir_image(sensor_capture);
-                const auto k4a_depth = k4a_capture_get_depth_image(sensor_capture);
+                //const auto k4a_ir = k4a_capture_get_ir_image(sensor_capture);
+                //const auto k4a_depth = k4a_capture_get_depth_image(sensor_capture);
 
-                if (k4a_color == NULL || k4a_ir == NULL) {
-                    continue;
-                }
+                //if (k4a_color == NULL || k4a_ir == NULL) {
+                //    continue;
+                //}
 
                 // Print depth image details.
                 //printf(" | Depth16 res:%4dx%4d stride:%5d\n",
@@ -170,6 +194,7 @@ int main()
                 //    k4a_image_get_stride_bytes(k4a_ir));
 
                 // Get color as cv::Mat
+                
                 const auto cv_color = cv::Mat_<cv::Vec4b>(
                     k4a_image_get_height_pixels(k4a_color),
                     k4a_image_get_width_pixels(k4a_color),
@@ -177,6 +202,7 @@ int main()
                     k4a_image_get_stride_bytes(k4a_color));
                 cv::imshow("color", cv_color);
 
+                /*
                 const auto cv_ir = cv::Mat_<short>(
                     k4a_image_get_height_pixels(k4a_ir),
                     k4a_image_get_width_pixels(k4a_ir),
@@ -190,22 +216,25 @@ int main()
                     (short*)k4a_image_get_buffer(k4a_depth),
                     k4a_image_get_stride_bytes(k4a_depth));
                 cv::imshow("depth", cv_depth * 40);
+                */
 
                 //ここでスケルトン以外の画像データを保存する
                 //cv_color, cv_ir, cv_depth
                 //cv::Mat
-                //cout << "milliseconds since epoch: " << millisec_since_epoch << endl;
-                /*cv::imwrite("./color/" + std::to_string(millisec_since_epoch) + ".jpg", cv_color);
-                cv::imwrite("./ir/" + std::to_string(millisec_since_epoch) + ".jpg", cv_ir);
-                cv::imwrite("./depth/" + std::to_string(millisec_since_epoch) + ".jpg", cv_depth);*/
+                //cout << "milliseconds since epoch: " << start_time << endl;
+                /*cv::imwrite("./color/" + std::to_string(start_time) + ".jpg", cv_color);
+                cv::imwrite("./ir/" + std::to_string(start_time) + ".jpg", cv_ir);
+                cv::imwrite("./depth/" + std::to_string(start_time) + ".jpg", cv_depth);*/
 
                 cv::waitKey(1);
 
+                /*
                 // Release the image and capture.
                 k4a_image_release(k4a_color);
                 k4a_image_release(k4a_ir);
                 k4a_image_release(k4a_depth);
                 k4a_capture_release(sensor_capture);
+                */
             }
             else if (pop_frame_result == K4A_WAIT_RESULT_TIMEOUT)
             {
@@ -232,18 +261,35 @@ int main()
             printf("Get depth capture returned error: %d\n", get_capture_result);
             break;
         }
-        
 
-
+        //キー入力を待っている状態
+        if (_kbhit()) {
+            if (getchar() == 'q') {
+                printf("stop recording\n");
+                break;
+            }
+        }
     } while (frame_count < FRAME_NUM);
     
+    printf("saving");
+    writing_file.open(filename, std::ios::out);  //ファイルを開く
+    for (const auto& e : vec_jointlist) {
+        list<string> l = e;
+        for (string s : l) {
+            writing_file << s;
+            writing_file << ',';
+        }
+        writing_file << '\n';
+        printf(".");
+    }
+
     //書き込みファイルを閉じる
     writing_file.close();
     cv::destroyAllWindows();
 
-    printf("Finished body tracking processing!\n");
+    printf("\nFinished body tracking processing!\n");
 
-    file.close();
+    //file.close();
     k4abt_tracker_shutdown(tracker);
     k4abt_tracker_destroy(tracker);
     k4a_device_stop_cameras(device);
@@ -251,12 +297,13 @@ int main()
 
     //Fileへの構造体の書き込み
     //fstream file("C:Users\suzuk\data\skelton.dat", ios::binary | ios::out);
+    /*
     fstream file2("..\skelton42.txt", ios::binary | ios::out);
     for (int i = 0; i < FRAME_NUM; i++) {
         file2.write((char*)&skeleton, sizeof(skeleton));
         //printf("position of x = %f\n", skeleton[i].joints[0].position.xyz);
     }
     file2.close();
-
+    */
     return 0;
 }
