@@ -60,7 +60,7 @@ int main()
     deviceConfig.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
     deviceConfig.color_resolution = K4A_COLOR_RESOLUTION_720P;
     deviceConfig.color_format = K4A_IMAGE_FORMAT_COLOR_BGRA32;
-    deviceConfig.camera_fps = K4A_FRAMES_PER_SECOND_30;
+    deviceConfig.camera_fps = K4A_FRAMES_PER_SECOND_15;
     VERIFY(k4a_device_start_cameras(device, &deviceConfig), "Start K4A cameras failed!");
 
     //体のトラッキング結果を取得するためのトラッカーを作成
@@ -81,6 +81,16 @@ int main()
 
     int frame_count = 0; //現在のFrame位置を記録しておく変数
     uint32_t temp_time = NULL; //FPS算出用の変数
+    std::string timedata = getDatetimeStr();
+
+    //画像の保存
+    char dir[30] = "KinectImage/";
+    strcat_s(dir, timedata.c_str());
+    if (_mkdir(dir) == 0) {
+        printf("Directory is created\nsaving");
+    }
+    std::string dir_str = dir;
+
     do
     {
         k4a_capture_t sensor_capture;
@@ -171,7 +181,9 @@ int main()
                 cv::imshow("color", cv_color);
                 //vectorにcolor画像を格納
                 vec_image.push_back(cv_color);
-
+                char dir[30] = "KinectImage/";
+                cv::imwrite(dir_str + "/" + std::to_string(during_millisec) + ".jpg", cv_color);
+            
                 cv::waitKey(1);
                 k4a_image_release(k4a_color);
                 k4a_capture_release(sensor_capture);
@@ -208,11 +220,17 @@ int main()
             }
         }
     } while (frame_count < FRAME_NUM);
+
+    //file.close();
+    k4abt_tracker_shutdown(tracker);
+    k4abt_tracker_destroy(tracker);
+    k4a_device_stop_cameras(device);
+    k4a_device_close(device);
     
     printf("saving");
     //関節点のデータを書き込む用のファイルを作成
     std::ofstream writing_file;
-    std::string timedata = getDatetimeStr();
+
     std::string filename = "./jointdata_csv/" + timedata + ".csv";
     writing_file.open(filename, std::ios::out);  //ファイルを開く
     //ファイルへのデータの書き込み
@@ -228,28 +246,16 @@ int main()
     printf("\n");
     writing_file.close();
 
-    //画像の保存
-    char dir[30] = "KinectImage/";
-    strcat_s(dir, timedata.c_str());
-    if (_mkdir(dir) == 0) {
-        printf("Directory is created\nsaving");
-    }
-    std::string dir_str = dir;
 
     for (int i=0; i < vec_image.size() ; i++) {
-        auto itr = vec_jointlist.at(i).begin();
-        cv::imwrite(dir_str + "/" + *itr + ".jpg", vec_image[i]);
-        printf(".");
+        
+        //cv::imshow("color", vec_image[i]);
+        //cv::imwrite(dir_str + "/" + *itr + ".jpg", vec_image[i]);
+        //printf("%d ", i);
     }
     
     cv::destroyAllWindows();
     printf("\nFinished body tracking processing!\n");
-
-    //file.close();
-    k4abt_tracker_shutdown(tracker);
-    k4abt_tracker_destroy(tracker);
-    k4a_device_stop_cameras(device);
-    k4a_device_close(device);
 
     return 0;
 }
