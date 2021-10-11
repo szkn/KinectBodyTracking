@@ -41,7 +41,7 @@ k4abt_frame_t body_frame = nullptr;
 k4a_calibration_t sensor_calibration;    
 k4abt_tracker_configuration_t tracker_config = K4ABT_TRACKER_CONFIG_DEFAULT;
 k4abt_skeleton_t skeleton;
-k4a_capture_t sensor_capture;
+
 
 
 
@@ -146,18 +146,20 @@ int main()
 
     do
     {
-        k4a_wait_result_t get_capture_result = \
-            k4a_device_get_capture(device, &sensor_capture, K4A_WAIT_INFINITE);
+        k4a_capture_t sensor_capture;
+        k4a_wait_result_t get_capture_result;
+        get_capture_result = k4a_device_get_capture(device, &sensor_capture, K4A_WAIT_INFINITE);
         if (get_capture_result == K4A_WAIT_RESULT_SUCCEEDED)
         {
             frame_count++;
             k4a_wait_result_t queue_capture_result =\
                 k4abt_tracker_enqueue_capture(tracker, sensor_capture, K4A_WAIT_INFINITE);
             //k4a_capture_release(sensor_capture); // Remember to release the sensor capture once you finish using it
-            
-            if (cap_result(queue_capture_result)) {
+            printf("%u result", queue_capture_result);
+            if (cap_result(queue_capture_result)==0) {
                 break;
             }
+
             k4a_wait_result_t pop_frame_result = \
                 k4abt_tracker_pop_result(tracker, &body_frame, K4A_WAIT_INFINITE);
 
