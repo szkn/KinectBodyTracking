@@ -164,7 +164,7 @@ void Save3dPoint(string timedata) {
         writing_file << '\n';
         cout << ".";
     }
-    printf("\n");
+    //printf("\n");
     writing_file.close();
 }
 
@@ -183,7 +183,7 @@ void Save2dColor(string timedata) {
         writing_file << '\n';
         cout << ".";
     }
-    printf("\n");
+    //printf("\n");
     writing_file.close();
 
 }
@@ -225,6 +225,7 @@ void Proc(uint32_t start_time) {
             //現在の時刻を取得する（マイクロ秒の情報を取得)
             uint32_t now_time = \
                 duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+            //FPSの画面表示
             if (frame_count > 1) {
                 int FPS = (int)1000 / (now_time - temp_time);
                 std::cout << FPS << "FPS";
@@ -232,8 +233,7 @@ void Proc(uint32_t start_time) {
             temp_time = now_time;
             uint32_t during_millisec = (now_time - start_time);
 
-            //std::string str_during_millisec = std::to_string(during_millisec);
-            //std::cout << now;
+            //体が検出されたとき
             for (uint32_t i = 0; i < num_bodies; i++)
             {
                 k4a_result_t result = k4abt_frame_get_body_skeleton(body_frame, i, &skeleton);
@@ -253,12 +253,10 @@ void Proc(uint32_t start_time) {
                 l_joint.push_back(std::to_string(id));
                 //printf("id %zu is detected!!!\n", id);
 
-                //フレームのi番のスケルトンデータ
+                //フレームのi番のスケルトンデータでの3次元のスケルトンデータを保存する
                 for (int jointId = 0; jointId < 33; ++jointId)
                 {
                     k4abt_joint_t joint = skeleton.joints[jointId];
-                    //printf("jointId = %d position is %f.\n", jointId, joint.position.xyz.x);
-                    //実際の書き込み
                     std::string x = std::to_string(joint.position.xyz.x);
                     std::string y = std::to_string(joint.position.xyz.y);
                     std::string z = std::to_string(joint.position.xyz.z);
@@ -335,17 +333,16 @@ int main()
             }
         }
     }
-    cout << "saving csv data\n";
-    //3Dの関節点データを書き込む
-    Save3dPoint(timedata);
-    //画面描写用の2Dの関節点のデータを書き込む
-    Save2dColor(timedata);
+    cout << "saving data\n";
+    std::thread t1(Save3dPoint, timedata);  //3Dの関節点データを書き込む
+    std::thread t2(Save2dColor, timedata); //画面描写用の2Dの関節点のデータを書き込む
+    //cout << "saving img data\n";
+    std::thread t3(SaveImg, vec_image, vec_time, timedata);  //画像データの保存
 
-    //画像データの保存
-    cout << "saving img data\n";
-    SaveImg(vec_image, vec_time, timedata);
+    t1.join();
+    t2.join();
+    t3.join();
 
     DestroyKinect();
     return 0;
 }
-
